@@ -112,14 +112,10 @@ void init_leds(void)
 	GPIOC->PUPDR &= ~(1<<19);
 	// Initialize to low
 	GPIOC->ODR &= ~(1<<9);
-	
-	/* Enable LEDs in RCC */
-	RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
 }
 
-int init_adc()
+void init_adc(void)
 {
-	int cal_factor = 0;
 	/* Setup GPIO for ADC (PC0) */
 	// Set to analog mode
 	GPIOC->MODER |= (1<<0);
@@ -127,9 +123,6 @@ int init_adc()
 	// Set no pull-up, no pull-down
 	GPIOC->PUPDR &= ~(1<<0);
 	GPIOC->PUPDR &= ~(1<<1);
-	
-	/* Enable ADC1 in RCC */
-	RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
 	
 	/* Configure ADC */
 	// 8-bit resolution
@@ -152,16 +145,73 @@ int init_adc()
 	// Set ADCAL = 1
 	ADC1->CR |= (1<<31);
 	// Wait until ADCAL = 0
-	while (ADC1->CR & (1<<31)) {}
-	// Read calibration factor
-	cal_factor = (ADC1->DR & (0x3F));
+	while (ADC1->CR & (1<<31));
 		
 	/* Enable ADC */
-	
-	
-	/* Start ADC */
+	// Clear ADRDY bit by setting to 1
+	//ADC1->ISR |= (1<<0);
+	// Set ADEN = 1
+	ADC1->CR |= (1<<0);
+	// Wait until ADRDY = 1
+	//while (ADC1->ISR & (1<<0))
+	//{
+	//	ADC1->CR |= (1<<0); // Continue to write ADEN = 1
+	//}
 		
-	return cal_factor;
+	/* Start ADC conversion */
+	// Set ADSTART = 1
+	ADC1->CR |= (1<<2);
+}
+
+void turn_on_led(int led)
+{
+	GPIOC->ODR |= (1<<led);
+}
+
+void turn_off_led(int led)
+{
+	GPIOC->ODR &= ~(1<<led);
+}
+
+void led_conversion(int val)
+{
+	int threshold_1 = 0;
+	int threshold_2 = 64;
+	int threshold_3 = 128;
+	int threshold_4 = 192;
+	
+	if (val > threshold_1)
+	{
+		turn_on_led(7);
+	}
+	else
+	{
+		turn_off_led(7);
+	}
+	if (val > threshold_2)
+	{
+		turn_on_led(9);
+	}
+	else
+	{
+		turn_off_led(9);
+	}
+	if (val > threshold_3)
+	{
+		turn_on_led(6);
+	}
+	else
+	{
+		turn_off_led(6);
+	}
+	if (val > threshold_4)
+	{
+		turn_on_led(8);
+	}
+	else
+	{
+		turn_off_led(8);
+	}
 }
 
 /* Private user code ---------------------------------------------------------*/
@@ -175,15 +225,27 @@ int init_adc()
   */
 int main(void)
 {
+	int cal_factor;
+	
   HAL_Init();
   SystemClock_Config();
+	
+	/* Enable LEDs in RCC */
+	RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
+	/* Enable ADC1 in RCC */
+	RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
 	
 	init_leds();
 	init_adc();
   
+	int converted_val = 0;
+	
   while (1)
   {
-    
+		// Pull converted value
+		converted_val = ADC1->DR;
+		
+		led_conversion(converted_val);
   }
 }
 
