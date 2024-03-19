@@ -51,7 +51,7 @@ void SystemClock_Config(void);
 
 /* USER CODE END PFP */
 
-void initialize_leds(void)
+void init_leds(void)
 {
 	/* Setup Red LED (PC6) */
 	// Set to general purpose output mode
@@ -112,11 +112,56 @@ void initialize_leds(void)
 	GPIOC->PUPDR &= ~(1<<19);
 	// Initialize to low
 	GPIOC->ODR &= ~(1<<9);
+	
+	/* Enable LEDs in RCC */
+	RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
 }
 
-void led_adc(int led)
+int init_adc()
 {
+	int cal_factor = 0;
+	/* Setup GPIO for ADC (PC0) */
+	// Set to analog mode
+	GPIOC->MODER |= (1<<0);
+	GPIOC->MODER |= (1<<1);
+	// Set no pull-up, no pull-down
+	GPIOC->PUPDR &= ~(1<<0);
+	GPIOC->PUPDR &= ~(1<<1);
 	
+	/* Enable ADC1 in RCC */
+	RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
+	
+	/* Configure ADC */
+	// 8-bit resolution
+	ADC1->CFGR1 &= ~(1<<3);
+	ADC1->CFGR1 |= (1<<4);
+	// Continuous conversion mode
+	ADC1->CFGR1 |= (1<<13);
+	// Disable hardware triggers (software trigger only)
+	ADC1->CFGR1 &= ~(1<<10);
+	ADC1->CFGR1 &= ~(1<<11);
+	
+	/* Select input pin/channel for ADC */
+	ADC1->CHSELR |= (1<<10);
+	
+	/* Perform self-calibration */
+	// Set ADEN = 0
+	ADC1->CR &= ~(1<<0);
+	// Set DMAEN = 0
+	ADC1->CFGR1 &= ~(1<<0);
+	// Set ADCAL = 1
+	ADC1->CR |= (1<<31);
+	// Wait until ADCAL = 0
+	while (ADC1->CR & (1<<31)) {}
+	// Read calibration factor
+	cal_factor = (ADC1->DR & (0x3F));
+		
+	/* Enable ADC */
+	
+	
+	/* Start ADC */
+		
+	return cal_factor;
 }
 
 /* Private user code ---------------------------------------------------------*/
@@ -133,9 +178,8 @@ int main(void)
   HAL_Init();
   SystemClock_Config();
 	
-	initialize_leds();
-	int led = 6;
-	led_adc(led);
+	init_leds();
+	init_adc();
   
   while (1)
   {
