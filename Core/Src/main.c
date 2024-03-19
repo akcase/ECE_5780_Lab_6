@@ -148,19 +148,32 @@ void init_adc(void)
 	while (ADC1->CR & (1<<31));
 		
 	/* Enable ADC */
-	// Clear ADRDY bit by setting to 1
-	//ADC1->ISR |= (1<<0);
 	// Set ADEN = 1
 	ADC1->CR |= (1<<0);
-	// Wait until ADRDY = 1
-	//while (ADC1->ISR & (1<<0))
-	//{
-	//	ADC1->CR |= (1<<0); // Continue to write ADEN = 1
-	//}
 		
 	/* Start ADC conversion */
 	// Set ADSTART = 1
 	ADC1->CR |= (1<<2);
+}
+
+void init_dac(void)
+{
+	/* Setup GPIO for DAC (PA4) */
+	// Set to analog mode
+	GPIOA->MODER |= (1<<8);
+	GPIOA->MODER |= (1<<9);
+	// Set no pull-up, no pull-down
+	GPIOA->PUPDR &= ~(1<<8);
+	GPIOA->PUPDR &= ~(1<<9);
+	
+	/* Configure DAC */
+	// Set software triggers
+	DAC1->CR |= (1<<3);
+	DAC1->CR |= (1<<4);
+	DAC1->CR |= (1<<5);
+	
+	/* Enable DAC */
+	DAC1->CR |= (1<<0);
 }
 
 void turn_on_led(int led)
@@ -230,22 +243,54 @@ int main(void)
   HAL_Init();
   SystemClock_Config();
 	
+	/* Enable GPIO A in RCC */
+	RCC->AHBENR |= RCC_AHBENR_GPIOAEN;
 	/* Enable LEDs in RCC */
 	RCC->AHBENR |= RCC_AHBENR_GPIOCEN;
 	/* Enable ADC1 in RCC */
 	RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
+	/* Enable DAC1 in RCC */
+	RCC->APB1ENR |= RCC_APB1ENR_DACEN;
 	
 	init_leds();
 	init_adc();
-  
+	init_dac();
+	
 	int converted_val = 0;
 	
+	int index = 0;
+	
+	// Sawtooth Wave: 8-bit, 32 samples/cycle
+	const uint8_t sawtooth_table[32] = {0,7,15,23,31,39,47,55,63,71,79,87,95,103,
+	111,119,127,134,142,150,158,166,174,182,190,198,206,214,222,230,238,246};
+
+	int part_1 = 1;
+	int part_2 = 1;
+		
   while (1)
   {
-		// Pull converted value
-		converted_val = ADC1->DR;
-		
-		led_conversion(converted_val);
+		if (part_1)
+		{
+			// Pull converted value
+			converted_val = ADC1->DR;
+			
+			led_conversion(converted_val);
+		}
+		if (part_2)
+		{
+			DAC1->DHR8R1 = sawtooth_table[index];
+			
+			if (index >= 31)
+			{
+				index = 0;
+			}
+			else
+			{
+				index++;
+			}
+			
+			HAL_Delay(1);
+		}
   }
 }
 
